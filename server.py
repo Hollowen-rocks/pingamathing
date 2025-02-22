@@ -1,40 +1,25 @@
 import asyncio
 import websockets
 import json
-import time
 
-connected_clients = {}
+connected_clients = set()
 
-async def handle_client(websocket, path):
-    global connected_clients
+async def handler(websocket, path):
+    connected_clients.add(websocket)
     try:
         async for message in websocket:
-            data = json.loads(message)
-            user_id = data["userId"]
-
-            if user_id not in connected_clients:
-                connected_clients[user_id] = {
-                    "name": data["name"],
-                    "currentPing": data["currentPing"],
-                    "avgPing": data["avgPing"],
-                    "last_update": time.time()
-                }
-            
-            client_data = connected_clients[user_id]
-            client_data["currentPing"] = data["currentPing"]
-            client_data["avgPing"] = sum(client_data["currentPing"] for _ in range(10)) // 10
-            client_data["last_update"] = time.time()
-
-            # Send updated client list to everyone
             for client in connected_clients:
-                await websocket.send(json.dumps(connected_clients))
-
+                if client != websocket and client.open:
+                    await client.send(message)
     except websockets.exceptions.ConnectionClosed:
-        print(f"Client disconnected: {websocket.remote_address}")
+        pass
+    finally:
+        connected_clients.remove(websocket)
 
-async def start_server():
-    server = await websockets.serve(handle_client, "0.0.0.0", 5000)
-    print("WebSocket server started on port 5000")
-    await server.wait_closed()
+async def main():
+    async with websockets.serve(handler, "0.0.0.0", 5000):
+        print("WebSocket server started on port 5000")
+        await asyncio.Future()
 
-asyncio.run(start_server())
+if __name__ == "__main__":
+    asyncio.run(main())
