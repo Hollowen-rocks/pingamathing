@@ -1,0 +1,3 @@
+[service]
+name = "websocket-server"
+start = "python3 server.py"
